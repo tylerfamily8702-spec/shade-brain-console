@@ -1,0 +1,233 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>center console</title>
+  <style>
+    :root {
+      --page: #090b0f;
+      --panel: #11151b;
+      --panel-inset: #0b0e13;
+      --border: #252c36;
+      --text: #d8dde5;
+      --muted: #8f9aa7;
+      --green: #43d694;
+      --red: #ff667c;
+      --yellow: #f4c96f;
+      --gray: #6e7983;
+    }
+    * { box-sizing: border-box; }
+    body { min-height: 100vh; margin: 0; background: var(--page); color: var(--text); font-family: "SF Mono", "Cascadia Code", "Consolas", monospace; }
+    main { width: min(1200px, calc(100% - 32px)); margin: 0 auto; padding: 42px 0 56px; }
+    .topbar { display: flex; align-items: flex-end; justify-content: space-between; gap: 16px; margin-bottom: 34px; }
+    h1 { margin: 0; font-size: clamp(1.6rem, 4vw, 2.3rem); font-weight: 700; letter-spacing: -0.08em; color: #f1f4f8; }
+    .subtitle { margin: 8px 0 0; color: var(--muted); font-size: 0.78rem; letter-spacing: 0.02em; }
+    button { appearance: none; border: 1px solid #343e4c; border-radius: 7px; padding: 10px 14px; background: #171d25; color: var(--text); cursor: pointer; font: inherit; font-size: 0.78rem; transition: background 120ms ease, border-color 120ms ease; }
+    button:hover { background: #202834; border-color: #526174; }
+    button:disabled { cursor: wait; opacity: 0.65; }
+    .service-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 16px; }
+    .card { position: relative; min-width: 0; padding: 26px 16px 16px; overflow: visible; background: var(--panel); border: 1px solid var(--border); border-radius: 10px; box-shadow: 0 14px 35px rgba(0, 0, 0, 0.18); }
+    .status-dot { position: absolute; top: -9px; left: 18px; width: 17px; height: 17px; border: 3px solid var(--panel); border-radius: 999px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.07); }
+    .status-green { background: var(--green); }
+    .status-red { background: var(--red); }
+    .status-yellow { background: var(--yellow); }
+    .status-gray { background: var(--gray); }
+    .service-name { margin: 0; color: #f1f4f8; font-size: 0.95rem; font-weight: 700; text-transform: lowercase; }
+    .service-meta { display: flex; justify-content: space-between; gap: 8px; margin: 8px 0 14px; color: var(--muted); font-size: 0.67rem; line-height: 1.35; }
+    .service-state { font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+    .unit-name { overflow: hidden; text-align: right; text-overflow: ellipsis; white-space: nowrap; }
+    .log-label { display: block; margin: 0 0 7px; color: var(--muted); font-size: 0.65rem; letter-spacing: 0.07em; text-transform: uppercase; }
+    .log-tail { height: 120px; margin: 0; padding: 10px; overflow-y: auto; overflow-wrap: anywhere; border: 1px solid #1d242e; border-radius: 6px; background: var(--panel-inset); color: #b9c3cf; font: inherit; font-size: 0.68rem; line-height: 1.55; white-space: pre-wrap; }
+    .footer { margin: 18px 2px 0; color: #66717f; font-size: 0.66rem; }
+    @media (max-width: 560px) {
+      main { width: min(100% - 24px, 1200px); padding-top: 28px; }
+      .topbar { align-items: flex-start; flex-direction: column; }
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <div class="topbar">
+      <div>
+        <h1>center console</h1>
+        <p class="subtitle">shade-brain homelab service status</p>
+      </div>
+      <button id="refresh-button" type="button">refresh</button>
+    </div>
+
+    <section id="service-grid" class="service-grid" aria-label="Service status">
+      <!-- Cards are rendered by the script. -->
+    </section>
+
+    <div id="last-updated" class="footer">waiting for first poll…</div>
+  </main>
+
+  <script>
+    const BASE_URL = "";
+
+    const services = [
+      { name: "qdrant", healthUrl: "http://localhost:6333/", logUnit: "shade-qdrant" },
+      { name: "litellm", healthUrl: "http://localhost:4000/health", logUnit: "litellm" },
+      { name: "open-webui", healthUrl: "http://localhost:8080/health", logUnit: "open-webui" },
+      { name: "ollama", healthUrl: "http://localhost:11434/", logUnit: "ollama" }
+    ];
+
+    const grid = document.getElementById("service-grid");
+    const refreshButton = document.getElementById("refresh-button");
+    const lastUpdated = document.getElementById("last-updated");
+
+    let isRefreshing = false;
+    let currentState = Object.fromEntries(
+      services.map((service) => [
+        service.name,
+        { healthy: false, statusColor: "gray", label: "unknown", logs: ["No status data yet."] }
+      ])
+    );
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#039;");
+    }
+
+    function colorFor(value) {
+      return ["green", "red", "yellow", "gray"].includes(value) ? value : "gray";
+    }
+
+    function stateLabel(state) {
+      if (state.label) return state.label;
+      if (state.statusColor === "yellow") return "checking";
+      if (state.statusColor === "gray") return "unknown";
+      return state.healthy ? "healthy" : "down";
+    }
+
+    function render() {
+      grid.innerHTML = services.map((service) => {
+        const state = currentState[service.name];
+        const color = colorFor(state.statusColor);
+        const logs = Array.isArray(state.logs) && state.logs.length ? state.logs.join("\n") : "No log lines returned.";
+
+        return `
+          <article class="card">
+            <span class="status-dot status-${color}" aria-label="${escapeHtml(stateLabel(state))}"></span>
+            <h2 class="service-name">${escapeHtml(service.name)}</h2>
+            <div class="service-meta">
+              <span class="service-state">${escapeHtml(stateLabel(state))}</span>
+              <span class="unit-name">${escapeHtml(service.logUnit)}</span>
+            </div>
+            <span class="log-label">log tail</span>
+            <pre class="log-tail">${escapeHtml(logs)}</pre>
+          </article>
+        `;
+      }).join("");
+    }
+
+    function setCheckingState() {
+      for (const service of services) {
+        currentState[service.name] = {
+          healthy: false,
+          statusColor: "yellow",
+          label: "checking",
+          logs: currentState[service.name]?.logs || ["Refreshing status…"]
+        };
+      }
+      render();
+    }
+
+    async function pollThroughLocalPoller() {
+      const response = await fetch(`${BASE_URL.replace(/\/$/, "")}/status`, { cache: "no-store" });
+      if (!response.ok) throw new Error(`poller returned HTTP ${response.status}`);
+      const payload = await response.json();
+      if (!Array.isArray(payload)) throw new Error("poller returned an unexpected response");
+      const records = new Map(payload.map((item) => [item.name, item]));
+      for (const service of services) {
+        const item = records.get(service.name);
+        if (!item) {
+          currentState[service.name] = { healthy: false, statusColor: "gray", label: "unknown", logs: ["This service was not included in the poller response."] };
+          continue;
+        }
+        currentState[service.name] = {
+          healthy: item.healthy === true,
+          statusColor: colorFor(item.statusColor),
+          label: item.healthy === true ? "healthy" : "down",
+          logs: Array.isArray(item.logs) ? item.logs : ["No journal output returned."]
+        };
+      }
+    }
+
+    async function pollDirectly() {
+      const checks = services.map(async (service) => {
+        try {
+          const response = await fetch(service.healthUrl, { cache: "no-store" });
+          const healthy = response.status === 200;
+          return {
+            name: service.name,
+            healthy,
+            statusColor: healthy ? "green" : "red",
+            label: healthy ? "healthy" : "down",
+            logs: [
+              `Health endpoint returned HTTP ${response.status}.`,
+              "Direct browser mode has no journal log access.",
+              "Set BASE_URL to http://localhost:8765 for log tails."
+            ]
+          };
+        } catch (error) {
+          return {
+            name: service.name,
+            healthy: false,
+            statusColor: "red",
+            label: "down",
+            logs: [
+              `Health request failed: ${error.message}`,
+              "This can be a stopped service, connection refusal, or browser CORS.",
+              "Run status-poller.py and set BASE_URL for health plus journal logs."
+            ]
+          };
+        }
+      });
+      const results = await Promise.all(checks);
+      for (const result of results) currentState[result.name] = result;
+    }
+
+    async function refresh() {
+      if (isRefreshing) return;
+      isRefreshing = true;
+      refreshButton.disabled = true;
+      refreshButton.textContent = "refreshing…";
+      setCheckingState();
+      try {
+        if (BASE_URL) {
+          await pollThroughLocalPoller();
+        } else {
+          await pollDirectly();
+        }
+        lastUpdated.textContent = `last updated: ${new Date().toLocaleTimeString()}`;
+      } catch (error) {
+        for (const service of services) {
+          currentState[service.name] = {
+            healthy: false,
+            statusColor: "yellow",
+            label: "checking",
+            logs: [`Poller unavailable: ${error.message}`, "Trying again automatically in 12 seconds."]
+          };
+        }
+        lastUpdated.textContent = "last poll failed — retrying automatically";
+      } finally {
+        render();
+        isRefreshing = false;
+        refreshButton.disabled = false;
+        refreshButton.textContent = "refresh";
+      }
+    }
+
+    refreshButton.addEventListener("click", refresh);
+    render();
+    refresh();
+    setInterval(refresh, 12_000);
+  </script>
+</body>
+</html>
