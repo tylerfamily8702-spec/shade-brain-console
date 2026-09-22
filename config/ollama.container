@@ -1,0 +1,14 @@
+# Runs Ollama, serving the local model (qwen2.5:14b-instruct-q3_K_M).
+# Part of the shade-ai pod.
+
+[Unit]
+Description=Ollama - local model server
+
+[Container]
+Image=docker.io/ollama/ollama:latest
+Pod=shade-ai.pod
+Volume=ollama-data.volume:/root/.ollama
+EnvironmentFile=%h/.config/shade-ai/.env
+
+[Install]
+WantedBy=default.target

@@ -1,0 +1,15 @@
+# Tailscale sidecar. Exposes the stack over your tailnet via
+# tailscale-serve.json instead of opening ports publicly.
+
+[Unit]
+Description=Tailscale sidecar
+
+[Container]
+Image=docker.io/tailscale/tailscale:latest
+Pod=shade-ai.pod
+Volume=tailscale-data.volume:/var/lib/tailscale
+Volume=%h/.config/shade-ai/tailscale-serve.json:/config/tailscale-serve.json:Z
+EnvironmentFile=%h/.config/shade-ai/.env
+
+[Install]
+WantedBy=default.target

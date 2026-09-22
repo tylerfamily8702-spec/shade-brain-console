@@ -1,0 +1,2 @@
+# Persistent storage for Qdrant vector data across restarts.
+[Volume]

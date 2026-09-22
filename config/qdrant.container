@@ -1,0 +1,13 @@
+# The vector DB used for memory/embeddings (Cognee memory layer reads/writes
+# here).
+
+[Unit]
+Description=Qdrant vector DB
+
+[Container]
+Image=docker.io/qdrant/qdrant:latest
+Pod=shade-ai.pod
+Volume=qdrant-data.volume:/qdrant/storage
+
+[Install]
+WantedBy=default.target

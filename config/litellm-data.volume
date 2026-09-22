@@ -1,0 +1,2 @@
+# Persistent storage for LiteLLM config across restarts.
+[Volume]

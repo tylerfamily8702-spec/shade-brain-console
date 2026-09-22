@@ -1,0 +1,16 @@
+# LiteLLM proxy in front of Ollama. Gives an OpenAI-compatible API surface
+# so other tools (open-webui, Lucas, etc.) can talk to the local model with
+# a standard API shape. Reads litellm-config.yaml.
+
+[Unit]
+Description=LiteLLM proxy
+
+[Container]
+Image=ghcr.io/berriai/litellm:main-latest
+Pod=shade-ai.pod
+Volume=litellm-data.volume:/app/config
+Volume=%h/.config/shade-ai/litellm-config.yaml:/app/config/litellm-config.yaml:Z
+EnvironmentFile=%h/.config/shade-ai/.env
+
+[Install]
+WantedBy=default.target

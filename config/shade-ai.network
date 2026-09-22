@@ -1,0 +1,7 @@
+# Podman network the shade-ai pod attaches to, so ollama/litellm/qdrant/
+# open-webui/tailscale can all reach each other by container name.
+#
+# Copy into ~/.config/containers/systemd/ on umbra.
+
+[Network]
+NetworkName=shade-ai

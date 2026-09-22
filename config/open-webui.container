@@ -1,0 +1,13 @@
+# The chat UI in front of the models, talks to LiteLLM.
+
+[Unit]
+Description=Open WebUI
+
+[Container]
+Image=ghcr.io/open-webui/open-webui:main
+Pod=shade-ai.pod
+Volume=open-webui-data.volume:/app/backend/data
+EnvironmentFile=%h/.config/shade-ai/.env
+
+[Install]
+WantedBy=default.target

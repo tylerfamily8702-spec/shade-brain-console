@@ -1,0 +1,14 @@
+# Podman pod definition - groups the containers below so they share a network
+# namespace and come up/down together as one unit.
+#
+# Copy this into ~/.config/containers/systemd/ on umbra alongside the other
+# quadlet files, then:
+#   systemctl --user daemon-reload
+#   systemctl --user start shade-ai-pod
+
+[Pod]
+PodName=shade-ai
+Network=shade-ai.network
+
+[Install]
+WantedBy=default.target
