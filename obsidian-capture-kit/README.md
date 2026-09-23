@@ -1,38 +1,124 @@
-# Obsidian Capture Kit
+# Obsidian capture kit
 
-A lightweight capture-and-review flow for feeding interesting ideas into the brain, with a manual promotion path when you actually act on one.
+A deliberately small intake lane for Shade Brain/Umbra. It is a local vault
+pattern and scanner, **not** a running service and not an automatic task
+creator. The default is intentionally low-pressure: capture it, mark it
+`interesting`, and let the weekly Sunday Calendar & Energy Audit decide whether
+it deserves more attention.
 
-## Folder layout
+## What is in here
 
-- `00-Inbox` - new captures land here first
-- `10-Active` - promoted notes you are actively moving on
-- `20-Shipped` - finished/shipped items
-- `90-Reviews` - weekly/periodic review notes
+```text
+obsidian-capture-kit/
+├── templates/
+│   └── Quick Capture.md       # Obsidian template for a new idea or observation
+├── vault/                     # optional starter folders; copy into a real vault
+│   ├── 00-Inbox/
+│   ├── 10-Active/
+│   ├── 20-Shipped/
+│   └── 90-Reviews/
+└── scan_vault.py              # read-only long/short loop report
+```
 
-## Quick Capture template
+The folder names are optional organization, not state. A note's frontmatter is
+the source of truth. Keep quick captures in `00-Inbox` if that is useful; move
+notes later without changing their loop behavior.
 
-See `templates/Quick Capture.md`. Every new capture defaults to:
+## Set up the capture flow
 
-- `status: seed`
-- `tags: [interesting]`
-- `loop_cycle: long`
+1. Copy `templates/Quick Capture.md` into your vault's template folder (for
+   example, `.obsidian/templates/`) and set Obsidian's Templates plug-in to use
+   that folder.
+2. Copy the optional `vault/` folders into the vault if you want the starter
+   layout. Do not copy the kit's own `README.md` or scanner into the note area
+   unless you want them searchable in Obsidian.
+3. On iPad or desktop, create a note with **Quick Capture**. Give it a plain
+   title, type the idea, and leave it alone. The template sets `tags:
+   [interesting]` and `loop_cycle: long` by default.
+4. Run the scanner before the Sunday audit or a morning planning session:
 
-## Long vs short loop
+   ```bash
+   python3 /path/to/obsidian-capture-kit/scan_vault.py "/path/to/Your Vault"
+   ```
 
-- **long** - default. Reviewed on the weekly Sunday audit cadence.
-- **short** - manual upgrade only. When you take a significant, evidence-backed action on an idea (a ClickUp task, a commit, money spent, a call booked), flip that note's `loop_cycle` to `short` in its frontmatter. Short-loop notes get reviewed every 2-3 days instead of waiting for Sunday.
+New captures are `seed` notes on the long loop: they are reviewed in the weekly
+Sunday audit, not repeatedly poked at during the day. That protects the early
+5-9am deep-work window from every passing thought turning into a priority.
 
-This upgrade is intentionally manual, not automatic. The scanner surfaces the split; you decide when an idea earned the shorter leash.
+## Frontmatter contract
+
+Every new capture starts with these fields:
+
+```yaml
+status: seed                 # seed | active | shipped
+created: "2026-09-23"       # Obsidian fills this from the template
+source: "quick capture"     # where the thought came from
+tags:
+  - interesting
+loop_cycle: long             # long = weekly Sunday audit
+significance: "unrated"
+```
+
+Use `source` for context that helps later: `pre-dawn iPad`, `client call`,
+`grant research`, `code review`, or a link. `significance` is intentionally a
+human judgment, such as `unrated`, `worth tracking`, or `significant`.
+
+## Upgrade: long loop -> short loop
+
+Do **not** promote an idea because it is merely exciting. Promote it only after
+there is concrete movement tied to the note:
+
+- a ClickUp task was created;
+- code was committed;
+- money was spent; or
+- James explicitly marked it significant.
+
+Then make the manual, reviewable change in that note's frontmatter:
+
+```yaml
+loop_cycle: short
+significance: "significant"
+```
+
+Also add a one-line receipt in **Evidence / movement**, for example:
+
+```md
+- 2026-09-23: created ClickUp task TES-184 for site estimate follow-up.
+```
+
+A short-loop item is eligible for a daily or every-2-3-day check-in. It is not
+a command to create, change, pay for, or send anything. For Shade Brain/Umbra
+and any agent, this is the approval-gated contract: the agent may read and
+surface the promotion; only an explicit action/evidence or direct mark permits
+changing `loop_cycle` from `long` to `short`.
+
+When the work is done, set `status: shipped`. Move the file to `20-Shipped` if
+that helps navigation; it can retain either loop setting until the next review.
 
 ## Scanner
 
-`scan_vault.py` is a read-only scanner that walks the vault, groups notes into `long` and `short` buckets by `loop_cycle` frontmatter, sorts each bucket newest-first by `created`, and skips `.obsidian` and other system directories. Supports plain text or JSON output.
+`scan_vault.py` recursively reads Markdown notes, ignores `.obsidian`, `.trash`,
+`.git`, and `node_modules`, and prints two lists sorted newest-first by
+`created`: short-loop items first, then long-loop items. It never edits notes.
 
+```bash
+# Human-readable weekly report
+python3 scan_vault.py "/path/to/Your Vault"
+
+# Export a machine-readable report for a local, approval-gated Umbra review job
+python3 scan_vault.py "/path/to/Your Vault" --format json --output /tmp/capture-loops.json
 ```
-python3 scan_vault.py /path/to/vault
-python3 scan_vault.py /path/to/vault --json
-```
 
-## Umbra handoff boundary
+The scanner uses PyYAML when it is installed. With a plain Python install, it
+falls back to the simple scalar/list YAML form emitted by `Quick Capture.md`,
+so this kit has no required package install. Malformed frontmatter becomes a
+warning; it does not stop the rest of the vault from being surfaced.
 
-This kit is local-first: capture and scanning happen in Obsidian on your machine. Nothing here auto-writes to Umbra/Shade Brain or ClickUp. Promotion (long -> short) is always a manual edit you make in the note itself.
+## Umbra handoff, without pretending this is deployed
+
+A future local Shade Brain job can run the JSON command above during the Sunday
+review, use `long_loop` as the interesting backlog, and use `short_loop` as the
+check-in queue. It should preserve the same boundary: ingestion is read-only
+and interesting-by-default; changing a note's state or loop is a visible,
+evidence-backed, approval-gated action. No daemon, sync, ClickUp integration,
+or background watcher is installed by this repository.
