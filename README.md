@@ -77,6 +77,43 @@ systemctl --user start shade-ai-pod
 
 ---
 
+## config/shade-alexa-mcp.service - Alexa MCP bridge
+
+User-level systemd unit for `serversmx/alexa-mcp`, a stdio MCP server
+that talks straight to your Amazon account (no third party in the
+middle) and exposes Alexa/Echo device control, announcements, media
+playback, and sensor status as MCP tools.
+
+Unlike the podman quadlet units above, this one runs a plain local
+npm install, not a container, since the underlying `alexa-remote2`
+library needs an interactive first-run login.
+
+**First-time setup on umbra (once):**
+```
+mkdir -p ~/services/alexa-mcp
+cd ~/services/alexa-mcp
+npm install alexa-mcp
+npx alexa-mcp        # run once, interactively, to log in to your Amazon account
+```
+Follow the prompts to authenticate against your Amazon/Alexa account.
+This creates the local session/cookie file the service will reuse on
+every restart, so it only needs to happen once (redo it if Amazon
+logs the session out).
+
+**Install the service:**
+```
+cp config/shade-alexa-mcp.service ~/.config/systemd/user/
+systemctl --user daemon-reload
+systemctl --user enable --now shade-alexa-mcp.service
+```
+
+**Known limitation:** `alexa-mcp` speaks MCP over stdio, not a
+network socket, so this unit mainly keeps the process alive/restarted;
+an actual MCP client (Claude Desktop, a Lucas-side bridge, etc.) still
+needs to attach to it directly rather than over the network.
+
+---
+
 ## scripts/ - provisioning script
 
 The bootstrap script that sets a fresh box up to run the stack above.
