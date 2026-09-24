@@ -1,0 +1,14 @@
+[Unit]
+Description=Shade Brain - Alexa MCP bridge (serversmx/alexa-mcp)
+After=network.target
+Wants=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/services/alexa-mcp
+ExecStart=/usr/bin/env npx --no-install alexa-mcp
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
